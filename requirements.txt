@@ -1,0 +1,7 @@
+datasets
+qdrant-client
+sentence_transformers
+tqdm
+sentencepiece
+transformers
+gradio
