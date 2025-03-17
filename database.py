@@ -5,19 +5,41 @@ from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from tqdm import tqdm
 import numpy as np
+import secrets
+import uuid
 
-client = QdrantClient("localhost", port=6333)
+QDRANT_HOST = "10.84.0.7"
+QDRANT_PORT = 6333
+QDRANT_TIMEOUT = 120
+
+
+collection_name='image_db'
+client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT,timeout=QDRANT_TIMEOUT)
+
+def generate_point_id():
+    # Generiere eine UUID
+    uuid_value = uuid.uuid4().hex
+
+    # Ersetze bestimmte Ziffern durch zufällige Werte
+    modified_uuid = ''.join(
+        (hex((int(c, 16) ^ secrets.randbits(4) & 15 >> int(c) // 4))[2:] if c in '018' else c)
+        for c in uuid_value
+    )
+
+    return str(modified_uuid)
+
+
 print("[INFO] Client created...")
 
 ################### Dataset Loading ###################
 image_dataset = []  
 
-root_dir = "dataset/cane"  
+root_dir = "dataset"  
 
 for subdir, dirs, files in os.walk(root_dir):
     for file in files:
         #look only for image files with jpeg extension
-        if  file.endswith(".jpeg"):  
+        if  file.endswith(".jpg"):  
             image_path = os.path.join(subdir, file)
             try:
                 image = Image.open(image_path)  
@@ -29,18 +51,19 @@ for subdir, dirs, files in os.walk(root_dir):
 
 ################### Loading the CLIP model ###################
 print("[INFO] Loading the model...")
-model_name = "./models/openai/clip-vit-base-patch32"
+model_name = "/home/reifr1z/models/laion/CLIP-ViT-B-32-laion2B-s34B-b79K"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 processor = AutoProcessor.from_pretrained(model_name)
 model = AutoModelForZeroShotImageClassification.from_pretrained(model_name)
 
 ###################----Creating a qdrant collection----######################
 print("[INFO] Creating qdrant data collection...")
-client.create_collection(
-    collection_name="animals_img_db",
-    vectors_config=models.VectorParams(size=512, distance=models.Distance.COSINE),
-
-)
+if not client.collection_exists(collection_name=collection_name):
+    client.create_collection(
+        collection_name=collection_name,
+        vectors_config=models.VectorParams(size=512, distance=models.Distance.COSINE),
+    
+    )
 
 ###################----creating records/vectors ----######################
 print("[INFO] Creating a data collection...")
@@ -50,17 +73,15 @@ for idx, sample in tqdm(enumerate(image_dataset), total=len(image_dataset)):
     img_embds = model.get_image_features(processed_img).detach().numpy().tolist()[0]
     img_px = list(sample.getdata())
     img_size = sample.size 
-    records.append(models.Record(id=idx, vector=img_embds, payload={"pixel_lst":img_px, "img_size": img_size}))
-
-
-#uploading the records to client
-print("[INFO] Uploading data records to data collection...")
-#It's better to upload chunks of data to the VectorDB 
-for i in range(30,len(records), 30):
-    print(f"finished {i}")
-    client.upload_records(
-        collection_name="animals_img_db",
-        records=records[i-30:i],
+    print("[INFO] Uploading data record to data collection...")
+    point_id = generate_point_id()
+    client.upload_points(
+        collection_name = collection_name,
+        points=[
+            models.PointStruct(id=point_id, vector=img_embds, payload={"pixel_lst":img_px, "img_size": img_size})
+        ]
+        
     )
+
 
 print("[INFO] Successfully uploaded data records to data collection!")
