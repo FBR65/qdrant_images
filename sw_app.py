@@ -11,7 +11,7 @@ QDRANT_HOST = "10.84.0.7"
 QDRANT_PORT = 6333
 QDRANT_TIMEOUT = 120
 
-collection_name = 'image_db'
+collection_name = 'sw_image_db'
 client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT, timeout=QDRANT_TIMEOUT)
 print("[INFO] Client created...")
 
@@ -25,6 +25,12 @@ model = AutoModelForZeroShotImageClassification.from_pretrained(model_name)
 def process_text(image):
     if image is None:
         return [], [], [], []
+
+    # Convert the image to a PIL Image object
+    if isinstance(image, np.ndarray):
+        image = Image.fromarray(image)
+        
+    image = image.convert('L')
     
     processed_img = processor(text=None, images=image, return_tensors="pt")['pixel_values']
     img_embeddings = model.get_image_features(processed_img).detach().numpy().tolist()[0]

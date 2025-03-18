@@ -13,7 +13,7 @@ QDRANT_PORT = 6333
 QDRANT_TIMEOUT = 120
 
 
-collection_name='image_db'
+collection_name='sw_image_db'
 client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT,timeout=QDRANT_TIMEOUT)
 
 def generate_point_id():
@@ -42,7 +42,7 @@ for subdir, dirs, files in os.walk(root_dir):
         if  file.endswith(".jpg"):  
             image_path = os.path.join(subdir, file)
             try:
-                image = Image.open(image_path)  
+                image = Image.open(image_path).convert('L')  
                 image_dataset.append(image)  
             except Exception as e:
                 print(f"Error loading image {image_path}: {e}")  
